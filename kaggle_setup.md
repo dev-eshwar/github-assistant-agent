@@ -1,6 +1,6 @@
-# Kaggle Notebook Setup & Execution Guide (Cloned Repository)
+# Kaggle Notebook Setup & Execution Guide (Cloned Repository with Pre-built Wiki)
 
-This guide explains how to execute the ADK multi-agent assistant directly within a Kaggle Notebook by cloning the agent codebase from GitHub.
+This guide explains how to execute the ADK multi-agent assistant directly within a Kaggle Notebook when the Wiki Knowledge Base has already been pre-built offline and uploaded to your GitHub repository.
 
 ---
 
@@ -29,23 +29,20 @@ To configure this in a Kaggle Notebook safely without hardcoding your key:
 
 ---
 
-## Step 3: Clone the Repositories
+## Step 3: Clone the Agent & Wiki Codebase
 
-In a new cell, clone the agent codebase and the target repository (`math-galaxy`) to analyze:
+Clone the agent repository (which now contains the pre-built `math-galaxy-wiki` folder):
 
 ```python
-# 1. Clone the agent codebase into the working directory
+# Clone the agent codebase into the working directory
 !git clone https://github.com/dev-eshwar/github-assistant-agent.git /kaggle/working/github-assistant-agent
-
-# 2. Clone the target repository to analyze
-!git clone https://github.com/dev-eshwar/math-galaxy.git /kaggle/working/math-galaxy
 ```
 
 ---
 
 ## Step 4: Move Directory Context to Cloned Repo
 
-Instead of copying files, run this Python cell to change the working directory context into the cloned repository so that all python imports find `shared_tools.py` and sub-agents correctly:
+Run this Python cell to change the working directory context into the cloned repository so that all python imports find `shared_tools.py` and sub-agents correctly:
 
 ```python
 import os
@@ -61,7 +58,7 @@ print("Directory Contents:", os.listdir("."))
 
 ## Step 5: Configure `config.json`
 
-Set up the configuration pointing to the target directories. Since the context is inside `github-assistant-agent`, the `.harness` folder will be created there:
+Set up the configuration pointing to the local pre-built wiki path. Since the wiki is part of the cloned repo, `wiki_path` will point to the folder inside `/kaggle/working/github-assistant-agent`:
 
 ```python
 import json
@@ -69,7 +66,7 @@ import os
 
 config_data = {
     "repo_path": "/kaggle/working/math-galaxy",
-    "wiki_path": "/kaggle/working/math-galaxy-wiki",
+    "wiki_path": "/kaggle/working/github-assistant-agent/math-galaxy-wiki",
     "github_url": "dev-eshwar/math-galaxy",
     "commit_depth": 100
 }
@@ -133,9 +130,17 @@ def execute_agent_query(query_str: str):
         auto_create_session=True,
     )
     
+    # Inject a system instruction to tell the orchestrator to skip the KB Sync step
+    system_instruction = (
+        "Note: The Wiki has already been pre-built offline and is available at the wiki_path. "
+        "Do not run the kb_builder_agent sync step. Proceed directly to invoking the qa_agent "
+        "and performing any necessary logic analysis."
+    )
+    full_prompt = f"{query_str}\n\n[System Instructions]: {system_instruction}"
+    
     content = types.Content(
         role="user",
-        parts=[types.Part.from_text(text=query_str)]
+        parts=[types.Part.from_text(text=full_prompt)]
     )
     
     events = runner.run(
@@ -147,6 +152,9 @@ def execute_agent_query(query_str: str):
     for event in events:
         if event.content and event.content.parts:
             for part in event.content.parts:
+                # Check for function calls first to prevent warning logs
+                if getattr(part, "function_call", None) is not None:
+                    continue
                 if getattr(part, "text", None):
                     print(part.text, end="")
 ```
@@ -155,7 +163,7 @@ def execute_agent_query(query_str: str):
 
 ## Step 7: Ask Questions & Run Analysis
 
-Use the following cell to run queries against the `math-galaxy` repository:
+Use the following cell to run queries against the pre-built `math-galaxy` wiki:
 
 ### Query 1: How are the math problems generated?
 Run this block and wait for the response:
