@@ -17,8 +17,7 @@ with open(skill_path, "r", encoding="utf-8") as f:
 # Configure retries to handle 429 rate limits
 retry_config = types.HttpRetryOptions(
     initial_delay=15.0,
-    attempts=6,
-    backoff_multiplier=1.5
+    attempts=6
 )
 
 # Define the Logic Reader Agent
