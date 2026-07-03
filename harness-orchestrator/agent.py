@@ -225,6 +225,20 @@ async def kb_builder_agent(query: str) -> str:
         query: Operational query details for the KB builder.
     """
     try:
+        # Resolve config path
+        harness_dir = os.path.join(parent_dir, ".harness")
+        config_path = os.path.join(harness_dir, "config.json")
+        config_data = {}
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config_data = json.load(f)
+            except Exception:
+                pass
+        
+        # Structure the prompt for the sub-agent
+        sub_agent_prompt = f"config: {json.dumps(config_data)}\nquery: {query}"
+        
         runner = Runner(
             app_name="kb-builder-subapp",
             agent=kb_builder_agent_obj,
@@ -233,7 +247,7 @@ async def kb_builder_agent(query: str) -> str:
             artifact_service=InMemoryArtifactService(),
             auto_create_session=True,
         )
-        content = types.Content(role="user", parts=[types.Part.from_text(text=query)])
+        content = types.Content(role="user", parts=[types.Part.from_text(text=sub_agent_prompt)])
         output = ""
         async for event in runner.run_async(user_id="sub_user", session_id="sub_session", new_message=content):
             if event.content and event.content.parts:
@@ -253,6 +267,21 @@ async def qa_agent(query: str) -> str:
         query: The question to answer.
     """
     try:
+        # Resolve config path and extract wiki_path
+        harness_dir = os.path.join(parent_dir, ".harness")
+        config_path = os.path.join(harness_dir, "config.json")
+        wiki_path = "./wiki"
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config_data = json.load(f)
+                    wiki_path = config_data.get("wiki_path", wiki_path)
+            except Exception:
+                pass
+        
+        # Structure the prompt for the sub-agent
+        sub_agent_prompt = f"wiki_path: {wiki_path}\nquery: {query}"
+        
         runner = Runner(
             app_name="qa-subapp",
             agent=qa_agent_obj,
@@ -261,7 +290,7 @@ async def qa_agent(query: str) -> str:
             artifact_service=InMemoryArtifactService(),
             auto_create_session=True,
         )
-        content = types.Content(role="user", parts=[types.Part.from_text(text=query)])
+        content = types.Content(role="user", parts=[types.Part.from_text(text=sub_agent_prompt)])
         output = ""
         async for event in runner.run_async(user_id="sub_user", session_id="sub_session", new_message=content):
             if event.content and event.content.parts:
@@ -281,6 +310,36 @@ async def logic_reader_agent(query: str) -> str:
         query: Operational query details including file paths and logic analysis request.
     """
     try:
+        # Resolve config path and extract repo_path
+        harness_dir = os.path.join(parent_dir, ".harness")
+        config_path = os.path.join(harness_dir, "config.json")
+        repo_path = "./repo"
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config_data = json.load(f)
+                    repo_path = config_data.get("repo_path", repo_path)
+            except Exception:
+                pass
+        
+        # Extract files to analyze from the QA result
+        transit_dir = os.path.join(harness_dir, "transit")
+        qa_result_path = os.path.join(transit_dir, "03_qa_result.json")
+        files_to_analyze = []
+        if os.path.exists(qa_result_path):
+            try:
+                with open(qa_result_path, "r", encoding="utf-8") as f:
+                    qa_data = json.load(f)
+                    files_to_analyze = qa_data.get("code_references", [])
+            except Exception:
+                pass
+
+        # Structure the prompt for the sub-agent
+        sub_agent_prompt = f"repo_path: {repo_path}\n"
+        if files_to_analyze:
+            sub_agent_prompt += f"files: {json.dumps(files_to_analyze)}\n"
+        sub_agent_prompt += f"query: {query}"
+        
         runner = Runner(
             app_name="logic-reader-subapp",
             agent=logic_reader_agent_obj,
@@ -289,7 +348,7 @@ async def logic_reader_agent(query: str) -> str:
             artifact_service=InMemoryArtifactService(),
             auto_create_session=True,
         )
-        content = types.Content(role="user", parts=[types.Part.from_text(text=query)])
+        content = types.Content(role="user", parts=[types.Part.from_text(text=sub_agent_prompt)])
         output = ""
         async for event in runner.run_async(user_id="sub_user", session_id="sub_session", new_message=content):
             if event.content and event.content.parts:
