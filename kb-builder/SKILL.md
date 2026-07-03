@@ -85,3 +85,8 @@ For each commit and issue, classify it into one of the categories:
 
 ### Step 7: Save Metadata
 1. Write/overwrite `wiki_path/.metadata.json` with the current timestamp and the latest commit hash (the first commit in the newly fetched commits, or the previous hash if no new commits).
+
+## Tool Call Constraints
+- The only valid tools you can call are: `run_shell_command`, `read_file_content`, `write_file_content`, `list_directory`, `path_exists`, `make_directory`, `http_get_request`.
+- Do NOT call any other tools.
+- To provide the final summary of what was synced, do NOT call any tool. Simply return the summary as a direct text message.

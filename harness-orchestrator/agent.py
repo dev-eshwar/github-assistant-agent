@@ -5,7 +5,10 @@ from datetime import datetime
 from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.genai import types
-from google.adk.tools.agent_tool import AgentTool
+from google.adk.runners import Runner
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+from google.adk.artifacts import InMemoryArtifactService
 from shared_tools import (
     read_file_content,
     write_file_content,
@@ -27,22 +30,22 @@ parent_dir = os.path.dirname(current_dir)
 
 # Import sub-agents
 kb_builder_module = import_agent_from_path(
-    "kb_builder_agent",
+    "kb_builder_agent_instance",
     os.path.join(parent_dir, "kb-builder", "agent.py")
 )
-kb_builder_agent = kb_builder_module.kb_builder_agent
+kb_builder_agent_obj = kb_builder_module.kb_builder_agent
 
 qa_module = import_agent_from_path(
-    "qa_agent",
+    "qa_agent_instance",
     os.path.join(parent_dir, "qa", "agent.py")
 )
-qa_agent = qa_module.qa_agent
+qa_agent_obj = qa_module.qa_agent
 
 logic_reader_module = import_agent_from_path(
-    "logic_reader_agent",
+    "logic_reader_agent_instance",
     os.path.join(parent_dir, "logic-reader", "agent.py")
 )
-logic_reader_agent = logic_reader_module.logic_reader_agent
+logic_reader_agent_obj = logic_reader_module.logic_reader_agent
 
 
 # Define Orchestrator Tools
@@ -215,6 +218,90 @@ def update_session_config(repo_path: str, wiki_path: str, github_url: str, commi
     except Exception as e:
         return f"Error updating config: {e}"
 
+async def kb_builder_agent(query: str) -> str:
+    """Executes the KB Builder sub-agent to parse commits/issues and build the Wiki database.
+    
+    Args:
+        query: Operational query details for the KB builder.
+    """
+    try:
+        runner = Runner(
+            app_name="kb-builder-subapp",
+            agent=kb_builder_agent_obj,
+            session_service=InMemorySessionService(),
+            memory_service=InMemoryMemoryService(),
+            artifact_service=InMemoryArtifactService(),
+            auto_create_session=True,
+        )
+        content = types.Content(role="user", parts=[types.Part.from_text(text=query)])
+        output = ""
+        async for event in runner.run_async(user_id="sub_user", session_id="sub_session", new_message=content):
+            if event.content and event.content.parts:
+                for part in event.content.parts:
+                    if getattr(part, "function_call", None) is not None:
+                        continue
+                    if getattr(part, "text", None):
+                        output += part.text
+        return output if output else "KB sync completed successfully."
+    except Exception as e:
+        return f"Error running KB Builder: {e}"
+
+async def qa_agent(query: str) -> str:
+    """Executes the Wiki QA sub-agent to answer a query using strictly the local Wiki markdown files.
+    
+    Args:
+        query: The question to answer.
+    """
+    try:
+        runner = Runner(
+            app_name="qa-subapp",
+            agent=qa_agent_obj,
+            session_service=InMemorySessionService(),
+            memory_service=InMemoryMemoryService(),
+            artifact_service=InMemoryArtifactService(),
+            auto_create_session=True,
+        )
+        content = types.Content(role="user", parts=[types.Part.from_text(text=query)])
+        output = ""
+        async for event in runner.run_async(user_id="sub_user", session_id="sub_session", new_message=content):
+            if event.content and event.content.parts:
+                for part in event.content.parts:
+                    if getattr(part, "function_call", None) is not None:
+                        continue
+                    if getattr(part, "text", None):
+                        output += part.text
+        return output if output else "No response from QA agent."
+    except Exception as e:
+        return f"Error running QA Agent: {e}"
+
+async def logic_reader_agent(query: str) -> str:
+    """Executes the Logic Reader sub-agent to perform deep code inspection and trace execution flows.
+    
+    Args:
+        query: Operational query details including file paths and logic analysis request.
+    """
+    try:
+        runner = Runner(
+            app_name="logic-reader-subapp",
+            agent=logic_reader_agent_obj,
+            session_service=InMemorySessionService(),
+            memory_service=InMemoryMemoryService(),
+            artifact_service=InMemoryArtifactService(),
+            auto_create_session=True,
+        )
+        content = types.Content(role="user", parts=[types.Part.from_text(text=query)])
+        output = ""
+        async for event in runner.run_async(user_id="sub_user", session_id="sub_session", new_message=content):
+            if event.content and event.content.parts:
+                for part in event.content.parts:
+                    if getattr(part, "function_call", None) is not None:
+                        continue
+                    if getattr(part, "text", None):
+                        output += part.text
+        return output if output else "No response from Logic Reader."
+    except Exception as e:
+        return f"Error running Logic Reader: {e}"
+
 
 # Load the skill content
 skill_path = os.path.join(current_dir, "SKILL.md")
@@ -246,8 +333,8 @@ harness_orchestrator_agent = Agent(
         list_directory,
         path_exists,
         make_directory,
-        AgentTool(kb_builder_agent),
-        AgentTool(qa_agent),
-        AgentTool(logic_reader_agent),
+        kb_builder_agent,
+        qa_agent,
+        logic_reader_agent,
     ],
 )

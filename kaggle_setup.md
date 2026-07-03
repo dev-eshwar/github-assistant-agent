@@ -29,36 +29,40 @@ To configure this in a Kaggle Notebook safely without hardcoding your key:
 
 ---
 
-## Step 3: Clone the Agent & Wiki Codebase
+## Step 3: Setup Repository Workspace (Clone, Pull, and Navigate)
 
-Clone the agent repository (which now contains the pre-built `math-galaxy-wiki` folder):
-
-```python
-# Clone the agent codebase into the working directory
-!git clone https://github.com/dev-eshwar/github-assistant-agent.git /kaggle/working/github-assistant-agent
-```
-
----
-
-## Step 4: Move Directory Context to Cloned Repo
-
-Run this Python cell to change the working directory context into the cloned repository so that all python imports find `shared_tools.py` and sub-agents correctly:
+Run this Python cell to clone or pull your agent codebase (containing the pre-built `math-galaxy-wiki` folder) and automatically move into the folder context:
 
 ```python
 import os
+import subprocess
 
-# Change current working directory to the cloned repo
-os.chdir("/kaggle/working/github-assistant-agent")
+repo_dir = "/kaggle/working/github-assistant-agent"
 
-print("Current Working Directory changed to:", os.getcwd())
+# Idempotently Clone or Pull latest updates
+if not os.path.exists(repo_dir):
+    print("Cloning the agent repository...")
+    subprocess.run([
+        "git", "clone", 
+        "https://github.com/dev-eshwar/github-assistant-agent.git", 
+        repo_dir
+    ])
+else:
+    print("Repository already exists. Pulling latest updates...")
+    subprocess.run(["git", "-C", repo_dir, "pull"])
+
+# Change directory context safely
+os.chdir(repo_dir)
+
+print("\nCurrent Working Directory successfully changed to:", os.getcwd())
 print("Directory Contents:", os.listdir("."))
 ```
 
 ---
 
-## Step 5: Configure `config.json`
+## Step 4: Configure `config.json`
 
-Set up the configuration pointing to the local pre-built wiki path. Since the wiki is part of the cloned repo, `wiki_path` will point to the folder inside `/kaggle/working/github-assistant-agent`:
+Set up the configuration pointing to the local pre-built wiki path. Since the context is inside `github-assistant-agent`, the `.harness` folder will be created there:
 
 ```python
 import json
@@ -80,7 +84,7 @@ print("Configuration file config.json updated at:", os.path.abspath(".harness/co
 
 ---
 
-## Step 6: Define Execution Cell
+## Step 5: Define Execution Cell (With Cache Clearing)
 
 Define the main runner block to load the orchestrator agent and run queries:
 
@@ -94,6 +98,12 @@ from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.artifacts import InMemoryArtifactService
 from google.genai import types
 from kaggle_secrets import UserSecretsClient
+
+# Force reload of all agent modules by clearing sys.modules cache.
+# This prevents Jupyter/Kaggle from using stale cached python code after you pull updates.
+for name in list(sys.modules.keys()):
+    if any(k in name for k in ["harness", "agent", "shared_tools", "kb_builder", "qa", "logic_reader"]):
+        sys.modules.pop(name, None)
 
 # Load Gemini API key from Kaggle Secrets environment
 user_secrets = UserSecretsClient()
@@ -161,7 +171,7 @@ def execute_agent_query(query_str: str):
 
 ---
 
-## Step 7: Ask Questions & Run Analysis
+## Step 6: Ask Questions & Run Analysis
 
 Use the following cell to run queries against the pre-built `math-galaxy` wiki:
 

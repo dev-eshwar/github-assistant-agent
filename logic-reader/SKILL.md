@@ -39,3 +39,8 @@ Format the analysis report as a markdown summary containing:
    - Provide a simplified code snippet or step-by-step logic path to clarify the execution flows.
 4. **Resolution Recommendations**:
    - Provide concrete code diffs or instructions on how to correct any identified logical issues.
+
+## Tool Call Constraints
+- The only valid tools you can call are: `read_file_content`, `list_directory`, `path_exists`.
+- Do NOT call any other tools.
+- To output the analysis report, do NOT call any tool. Simply return the report as a direct text message.
