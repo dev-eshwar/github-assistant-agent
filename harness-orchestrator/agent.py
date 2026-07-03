@@ -5,7 +5,7 @@ from datetime import datetime
 from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.genai import types
-from google.adk.tools.agent_tool import _SingleTurnAgentTool
+from google.adk.tools.agent_tool import AgentTool
 from shared_tools import (
     read_file_content,
     write_file_content,
@@ -246,8 +246,8 @@ harness_orchestrator_agent = Agent(
         list_directory,
         path_exists,
         make_directory,
-        _SingleTurnAgentTool(kb_builder_agent),
-        _SingleTurnAgentTool(qa_agent),
-        _SingleTurnAgentTool(logic_reader_agent),
+        AgentTool(kb_builder_agent),
+        AgentTool(qa_agent),
+        AgentTool(logic_reader_agent),
     ],
 )
